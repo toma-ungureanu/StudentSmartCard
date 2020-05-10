@@ -1,0 +1,12 @@
+// Copyright (c) 1998, 2019, Oracle and/or its affiliates. All rights reserved.
+
+// Applet Selection APDU Script
+//
+// Package:     card.ro.uaic.smartcards
+// Package AID: //aid/0000000000/00
+// Applet:      ro.uaic.smartcards.StudentCard
+// Applet AID:  //aid/0000000000/01
+//
+
+// Select ro.uaic.smartcards.StudentCard applet
+0x00 0xA4 0x04 0x00 0x06 0x00 0x00 0x00 0x00 0x00 0x01 0x7F;

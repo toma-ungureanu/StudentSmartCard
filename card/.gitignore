@@ -1,0 +1,13 @@
+.idea
+.settings
+bin
+lib
+out
+.classpath
+.project
+.factorypath
+deliverables
+configurations
+.gen
+.project
+.javacard_project
