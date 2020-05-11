@@ -13,8 +13,8 @@ import java.util.List;
 
 public class Database
 {
-    private static final String DATABASE_PATH = "students.xlsx";
-    public static final String TEST_DATABASE_PATH = "students - Copy.xlsx";
+    public static final String DATABASE_PATH = "C:\\Users\\Tomy\\eclipse-workspace\\StudentCardProject\\Terminal\\src\\database\\resources\\students.xlsx";
+    public static final String TEST_DATABASE_PATH = "C:\\Users\\Tomy\\eclipse-workspace\\StudentCardProject\\Terminal\\src\\database\\resources\\students-Copy.xlsx";
 
     private File m_databaseFile = new File(DATABASE_PATH);
     private static final int STUDENT_ID_FIELD = 0;
@@ -71,6 +71,30 @@ public class Database
                 row.getCell(IS_GRADE_VALID_FIELD).getBooleanCellValue());
     }
 
+    public ArrayList<StudentDatabaseRow> getStudentGrades(int studentId)
+    {
+        ArrayList<StudentDatabaseRow> gradesList = new ArrayList<>();
+        int index = 0;
+        for (Row row : m_sheet)
+        {
+            if (index == 0)
+            {
+                index++;
+                continue;
+            }
+
+            if (row.getCell(STUDENT_ID_FIELD) != null)
+            {
+                int rowStudentId = (int) row.getCell(STUDENT_ID_FIELD).getNumericCellValue();
+                if (rowStudentId == studentId)
+                {
+                    gradesList.add(constructStudentObject(row));
+                }
+            }
+        }
+        return gradesList;
+    }
+
     private String getSubjectName(int subjectId)
     {
         switch (subjectId)
@@ -112,12 +136,15 @@ public class Database
                 continue;
             }
 
-            int studentId = (int) row.getCell(STUDENT_ID_FIELD).getNumericCellValue();
-            int subjectId = (int) row.getCell(SUBJECT_ID_FIELD).getNumericCellValue();
-
-            if (studentId == studentDatabaseRow.getStudentId() && subjectId == studentDatabaseRow.getSubjectId())
+            if (row.getCell(STUDENT_ID_FIELD) != null && row.getCell(SUBJECT_ID_FIELD) != null)
             {
-                return constructStudentObject(row);
+                int studentId = (int) row.getCell(STUDENT_ID_FIELD).getNumericCellValue();
+                int subjectId = (int) row.getCell(SUBJECT_ID_FIELD).getNumericCellValue();
+
+                if (studentId == studentDatabaseRow.getStudentId() && subjectId == studentDatabaseRow.getSubjectId())
+                {
+                    return constructStudentObject(row);
+                }
             }
         }
 
@@ -183,7 +210,7 @@ public class Database
             else if (field == IS_GRADE_VALID_FIELD)
             {
                 String formula = "IF(OR(E" + rowNum + ">= 5,AND(E" + rowNum +
-                        " < 5, F" + rowNum + " = TRUE, G" + rowNum + " = 2)),TRUE,FALSE)";
+                        " < 5, F" + rowNum + " = TRUE, G" + rowNum + " >= 1)),TRUE,FALSE)";
 
                 cell.setCellFormula(formula);
                 FormulaEvaluator evaluator = m_book.getCreationHelper().createFormulaEvaluator();
@@ -201,7 +228,7 @@ public class Database
         int numberOfNonEmptyRows = 0;
         for (Row row : m_sheet)
         {
-            if (row.getCell(STUDENT_ID_FIELD).getCellType() != CellType.BLANK)
+            if (row.getCell(STUDENT_ID_FIELD) != null && row.getCell(STUDENT_ID_FIELD).getCellType() != CellType.BLANK)
             {
                 numberOfNonEmptyRows++;
             }
@@ -281,6 +308,12 @@ public class Database
             {
                 int rowNum = row.getRowNum() + 1;
                 createCellStyle(row.getCell(IS_TAX_PAYED_FIELD), rowNum, "BOOLEAN", IS_TAX_PAYED_FIELD, studentDatabaseRow);
+                studentDatabaseRow.setIsGradeValid(true);
+                createCellStyle(row.getCell(IS_GRADE_VALID_FIELD), rowNum, "BOOLEAN", IS_GRADE_VALID_FIELD, studentDatabaseRow);
+                System.out.println("Tax payed succesfully for: " + studentDatabaseRow.getSubjectName() + "(" + studentDatabaseRow.getSubjectId() + ")");
+                FileOutputStream outputStream = new FileOutputStream(m_databaseFile);
+                m_book.write(outputStream);
+                break;
             }
         }
         return true;
@@ -340,7 +373,7 @@ public class Database
 
         if (retVal)
         {
-            FileOutputStream outputStream = new FileOutputStream(DATABASE_PATH);
+            FileOutputStream outputStream = new FileOutputStream(m_databaseFile);
             m_book.write(outputStream);
         }
         return retVal;

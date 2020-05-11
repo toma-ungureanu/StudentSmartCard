@@ -3,10 +3,12 @@ package terminal.sources;
 import com.sun.javacard.apduio.Apdu;
 import com.sun.javacard.apduio.CadClientInterface;
 import com.sun.javacard.apduio.CadTransportException;
+import database.sources.StudentDatabaseRow;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Scanner;
 import java.util.stream.Collectors;
@@ -100,6 +102,11 @@ public class Utils
         return true;
     }
 
+    static boolean checkStudentId(int studentId)
+    {
+        return studentId > 0 && studentId < 3000;
+    }
+
     static int promptStudyField()
     {
         Scanner in = new Scanner(System.in);
@@ -154,9 +161,66 @@ public class Utils
         int studentId = Integer.parseInt(gradeStr);
         if (studentId > MAX_STUDENTS)
         {
-            System.out.println("Maximum number of students reached");
+            System.out.println("Wrong student ID!");
             return -1;
         }
         return studentId;
     }
+
+    static String promptPin() throws IOException
+    {
+        System.out.println("Enter your PIN:");
+        String PIN = new Scanner(System.in).nextLine();
+
+        for (int i = 0; i < PIN.length(); ++i)
+        {
+            if (PIN.charAt(i) < '0' || PIN.charAt(i) > '9')
+            {
+                System.out.println("Invalid PIN: " + PIN);
+                break;
+            }
+        }
+        return PIN;
+    }
+
+    static void fancyPrint(StudentDatabaseRow studentDatabaseRow)
+    {
+        System.out.println("####    Subject: " + studentDatabaseRow.getSubjectName() + "(" + studentDatabaseRow.getSubjectId() + ")");
+        System.out.println("####    Grade: " + studentDatabaseRow.getGrade());
+        System.out.println("####    Date: " + studentDatabaseRow.getGradeDate());
+        System.out.println("####    Valid Grade: " + studentDatabaseRow.getIsGradeValid());
+        if (studentDatabaseRow.getGrade() < 5)
+        {
+            System.out.println("####    Reexaminations: " + studentDatabaseRow.getNumberOfReexams());
+            System.out.println("####    Tax: " + studentDatabaseRow.getIsTaxPayed());
+        }
+    }
+
+
+    static ArrayList<Short> promptStudyFields()
+    {
+        System.out.println("Enter the study field id(s) separated by spaces");
+        Scanner in = new Scanner(System.in);
+        String studyFielsdStr = in.nextLine();
+        String[] studyFieldsStrArray = studyFielsdStr.split(" ");
+        ArrayList<Short> studyFieldsArray = new ArrayList<>();
+        for (String studyFieldStr : studyFieldsStrArray)
+        {
+            if (!isNumeric(studyFieldStr))
+            {
+                System.out.println("Incorrect study field entered: " + studyFieldStr);
+                return null;
+            }
+
+            short studyField = Short.parseShort(studyFieldStr);
+            if (!checkStudyFieldCode(studyField))
+            {
+                System.out.println("Study field unavailable");
+                return null;
+            }
+            studyFieldsArray.add(studyField);
+        }
+        return studyFieldsArray;
+    }
+
 }

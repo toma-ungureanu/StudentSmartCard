@@ -39,6 +39,11 @@ public class StudentDatabaseRow
         return m_isTaxPayed;
     }
 
+    public void setIsGradeValid(boolean isGradeValid)
+    {
+        this.m_isGradeValid = isGradeValid;
+    }
+
     public void setIsTaxPayed(boolean isTaxPayed)
     {
         this.m_isTaxPayed = isTaxPayed;

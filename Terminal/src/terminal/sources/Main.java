@@ -1,23 +1,14 @@
 package terminal.sources;
 
-import java.io.*;
-import java.net.Socket;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.security.*;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import com.sun.javacard.apduio.Apdu;
 import com.sun.javacard.apduio.CadClientInterface;
 import com.sun.javacard.apduio.CadDevice;
-import com.sun.javacard.apduio.CadTransportException;
 import database.sources.Database;
-import database.sources.StudentDatabaseRow;
 
-import static terminal.sources.Utils.*;
+import java.io.*;
+import java.net.Socket;
+
+import static terminal.sources.Utils.isNumeric;
+import static terminal.sources.Utils.runScript;
 
 public class Main
 {
@@ -53,18 +44,19 @@ public class Main
                 {
                     BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 
-                    System.out.println("Insert method(1/2/3/4): ");
+                    System.out.println("Insert method(1/2/3/4/5/6): ");
                     System.out.println("1. Exam grade(student card present)");
                     System.out.println("2. Exam grade(based on given student id)");
                     System.out.println("3. Get card grade(s)");
                     System.out.println("4. Sync database and student card");
-                    System.out.println("5. Close");
+                    System.out.println("5. Pay a tax");
+                    System.out.println("6. Close");
                     String method = br.readLine().toLowerCase();
 
                     if (!isNumeric(method))
                     {
                         System.out.println("Method not recognized");
-                        return;
+                        break;
                     }
 
                     switch (Integer.parseInt(method))
@@ -78,12 +70,17 @@ public class Main
                             break;
 
                         case 3:
+                            Terminal.getGrades(cad);
                             break;
 
                         case 4:
+                            Terminal.syncDatabaseAndCard(cad);
                             break;
 
                         case 5:
+                            Terminal.payTax(cad);
+                            break;
+                        case 6:
                             cad.powerDown();
                             sock.close();
 

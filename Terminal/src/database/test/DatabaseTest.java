@@ -1,25 +1,26 @@
 package database.test;
 
+import database.sources.Database;
+import database.sources.StudentDatabaseRow;
+import org.junit.Test;
+
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.Month;
 import java.time.ZoneId;
 import java.util.Date;
 
-import database.sources.Database;
-import database.sources.StudentDatabaseRow;
-import org.junit.Test;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class DatabaseTest
 {
+    private static final Database database = new Database(Database.TEST_DATABASE_PATH);
+
     @Test
     public void test_Modify_Grade_Smaller_Than_4() throws IOException
     {
-        Database database = new Database(Database.TEST_DATABASE_PATH);
         StudentDatabaseRow student = new StudentDatabaseRow(1, 101);
-        
         database.openDatabase();
         student = database.getStudentGradeInfo(student);
         student.setGrade(0);
@@ -30,7 +31,6 @@ public class DatabaseTest
     @Test
     public void test_Modify_Grade_Larger_Than_10() throws IOException
     {
-        Database database = new Database(Database.TEST_DATABASE_PATH);
         StudentDatabaseRow student = new StudentDatabaseRow(1, 101);
         database.openDatabase();
         student = database.getStudentGradeInfo(student);
@@ -46,8 +46,7 @@ public class DatabaseTest
         int subjectId = 111;
         int grade = 10;
         Date today = new Date();
-        
-        Database database = new Database(Database.TEST_DATABASE_PATH);
+
         StudentDatabaseRow student = new StudentDatabaseRow(studentId, subjectId);
         student.setGrade(grade);
         student.setGradeDate(today);
@@ -65,8 +64,7 @@ public class DatabaseTest
             int subjectId = 101;
             int grade = 10;
             Date today = new Date();
-            
-            Database database = new Database(Database.TEST_DATABASE_PATH);
+
             StudentDatabaseRow student = new StudentDatabaseRow(studentId, subjectId);
             student.setGrade(grade);
             student.setGradeDate(today);
@@ -84,8 +82,7 @@ public class DatabaseTest
         int subjectId = 101;
         int grade = 8;
         Date today = new Date();
-        
-        Database database = new Database(Database.TEST_DATABASE_PATH);
+
         StudentDatabaseRow student = new StudentDatabaseRow(studentId, subjectId);
         student.setGrade(grade);
         student.setGradeDate(today);

@@ -6,9 +6,9 @@ import com.sun.javacard.apduio.CadTransportException;
 import database.sources.Database;
 import database.sources.StudentDatabaseRow;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.security.GeneralSecurityException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Scanner;
@@ -20,42 +20,124 @@ public class Terminal
     // code of CLA byte in the command APDU header
     final static byte STUDENT_CARD_CLA = (byte) 0x80;
     // codes of INS byte in the command APDU header
-    final static byte GET_GRADE = (byte) 0x0A;
     final static byte GET_GRADES = (byte) 0x0B;
+    final static short GRADE_PAYLOAD_SIZE = 12;
     final static byte GET_STUDENT_ID = (byte) 0x0C;
-    final static byte INSERT_GRADE = (byte) 0x1A;
     final static byte INSERT_GRADES = (byte) 0x1B;
     final static byte VERIFY_PIN = (byte) 0x20;
-    final static byte UPDATE_PIN = (byte) 0x70;
     final static short MAX_STUDENTS = 3000;
 
     private static final Database database = new Database();
 
     static void getGrades(CadClientInterface cad) throws IOException
     {
-        System.out.println("Enter the study field id(s) separated by spaces");
-        Scanner in = new Scanner(System.in);
-        String studyFielsdStr = in.nextLine();
-        String[] studyFieldsStrArray = studyFielsdStr.split(" ");
-        ArrayList<Integer> studyFieldsArray = new ArrayList<>();
-        for (String studyFieldStr : studyFieldsStrArray)
+        String PIN = promptPin();
+        verifyPIN(PIN, cad);
+        ArrayList<Short> studyFieldsArray = promptStudyFields();
+        if (studyFieldsArray == null)
         {
-            if (!isNumeric(studyFieldStr))
-            {
-                System.out.println("Incorrect study field entered: " + studyFieldStr);
-                return;
-            }
+            return;
+        }
+        Apdu apdu = new Apdu();
+        apdu.command = new byte[]{STUDENT_CARD_CLA, GET_GRADES, 0x00, 0x00};
+        byte[] inputData = new byte[studyFieldsArray.size()];
+        for (int index = 0; index < inputData.length; index++)
+        {
+            inputData[index] = studyFieldsArray.get(index).byteValue();
+        }
+        apdu.setDataIn(inputData, inputData.length);
+        short leValue = (short) (studyFieldsArray.size() * GRADE_PAYLOAD_SIZE);
+        apdu.setLe((byte) leValue);
 
-            int studyField = Integer.parseInt(studyFieldStr);
-            if (!checkStudyFieldCode(studyField))
-            {
-                System.out.println("Study field unabailable");
-                return;
-            }
-            studyFieldsArray.add(studyField);
+        System.out.println("command: " + apdu);
+        try
+        {
+            cad.exchangeApdu(apdu);
+        }
+        catch (IOException | CadTransportException e)
+        {
+            e.printStackTrace();
         }
 
+        System.out.println("response: " + apdu);
     }
+
+    static void payTax(CadClientInterface cad) throws IOException
+    {
+        int studentId = getStudentId(cad);
+        database.openDatabase();
+        ArrayList<StudentDatabaseRow> gradeList = database.getStudentGrades(studentId);
+        database.closeDatabase();
+
+        ArrayList<Integer> subjectTaxes = new ArrayList<>();
+        for (StudentDatabaseRow studentDatabaseRow : gradeList)
+        {
+            if (!studentDatabaseRow.getIsGradeValid() && !studentDatabaseRow.getIsTaxPayed())
+            {
+                System.out.println("Tax needed for: " + studentDatabaseRow.getSubjectName() + "(" + studentDatabaseRow.getSubjectId() + ")");
+                subjectTaxes.add(studentDatabaseRow.getSubjectId());
+            }
+        }
+
+        if (subjectTaxes.size() == 0)
+        {
+            System.out.println("No tax to pay!");
+        }
+
+        else
+        {
+            System.out.println("You can pay taxes for " + subjectTaxes.size() + " subjects");
+            ArrayList<Short> studyFields = promptStudyFields();
+            if (studyFields == null)
+            {
+                return;
+            }
+
+            database.openDatabase();
+            for(Short studyfield: studyFields)
+            {
+                for(StudentDatabaseRow studentDatabaseRow: gradeList)
+                {
+                    if(studentDatabaseRow.getSubjectId() == studyfield)
+                    {
+                        studentDatabaseRow.setIsTaxPayed(true);
+                        database.payTax(studentDatabaseRow);
+                        break;
+                    }
+                }
+            }
+            database.closeDatabase();
+        }
+    }
+
+    static void syncDatabaseAndCard(CadClientInterface cad) throws IOException
+    {
+        String PIN = promptPin();
+        verifyPIN(PIN, cad);
+
+        int studentId = getStudentId(cad);
+        database.openDatabase();
+        ArrayList<StudentDatabaseRow> gradesList = database.getStudentGrades(studentId);
+        database.closeDatabase();
+        System.out.println("########## STUDENT GRADES ##########");
+        for (StudentDatabaseRow studentDatabaseRow : gradesList)
+        {
+            if(studentDatabaseRow.getIsGradeValid())
+            {
+                insertGradeInCard(cad, studentDatabaseRow);
+            }
+            else
+            {
+                System.out.println("Cannot insert grade in card. Grade not valid!");
+                System.out.println(studentDatabaseRow.getSubjectName()+"(" + studentDatabaseRow.getSubjectId() + ")");
+            }
+            System.out.println("##########");
+            fancyPrint(studentDatabaseRow);
+            System.out.println("##########");
+            System.out.println();
+        }
+    }
+
 
     static void insertGrade() throws IOException
     {
@@ -79,12 +161,13 @@ public class Terminal
 
         Date today = new Date();
         StudentDatabaseRow student = new StudentDatabaseRow();
-        student.setGrade(grade);
         student.setStudentId(studentId);
         student.setSubjectId(studyField);
-        student.setGradeDate(today);
 
         database.openDatabase();
+        student = database.getStudentGradeInfo(student);
+        student.setGrade(grade);
+        student.setGradeDate(today);
         database.setStudentGrade(student);
         database.closeDatabase();
 
@@ -92,7 +175,7 @@ public class Terminal
 
     static void insertGrade(CadClientInterface cad) throws IOException
     {
-        String PIN = promptForPin();
+        String PIN = promptPin();
         verifyPIN(PIN, cad);
 
         int studyField = promptStudyField();
@@ -113,16 +196,50 @@ public class Terminal
         student.setGradeDate(today);
         student.setGrade(grade);
 
+        insertGradeInCard(cad, student);
         Database database = new Database();
         database.openDatabase();
         database.setStudentGrade(student);
         database.closeDatabase();
     }
 
+    private static void insertGradeInCard(CadClientInterface cad, StudentDatabaseRow student)
+    {
+        DateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
+        if (student.getStudentId() > MAX_STUDENTS || student.getStudentId() < 0)
+        {
+            System.out.println("Wrong studentId");
+            return;
+        }
+
+        byte[] payload = new byte[GRADE_PAYLOAD_SIZE + 1]; // + 1 because we introduce one grade
+        payload[0] = (byte) 1;
+        payload[1] = (byte) student.getSubjectId();
+        payload[2] = (byte) student.getGrade();
+        System.arraycopy(dateFormat.format(student.getGradeDate()).getBytes(), 0, payload, 3, 10);
+
+        Apdu apdu = new Apdu();
+        apdu.command = new byte[]{STUDENT_CARD_CLA, INSERT_GRADES, 0x00, 0x00};
+        apdu.setDataIn(payload, payload.length);
+        apdu.setLe(0x02);
+
+        System.out.println("command: " + apdu);
+        try
+        {
+            cad.exchangeApdu(apdu);
+        }
+        catch (IOException | CadTransportException e)
+        {
+            e.printStackTrace();
+        }
+
+        System.out.println("response: " + apdu);
+    }
+
     static int getStudentId(CadClientInterface cad)
     {
         Apdu apdu = new Apdu();
-        apdu.command = new byte[]{(byte) STUDENT_CARD_CLA, GET_STUDENT_ID, 0x00, 0x00};
+        apdu.command = new byte[]{STUDENT_CARD_CLA, GET_STUDENT_ID, 0x00, 0x00};
         apdu.setDataIn(null, 0);
         apdu.setLe(0x02);
 
@@ -137,49 +254,8 @@ public class Terminal
         }
 
         System.out.println("response: " + apdu);
-        byte[] response = apdu.getResponseApduBytes();
+        byte[] response = apdu.dataOut;
         return ((response[0] & 0xff) << 8) | (response[1] & 0xff);
-    }
-
-    static void debit(BufferedReader br, CadClientInterface cad, short amount) throws IOException, GeneralSecurityException
-    {
-
-    }
-
-    static short getAmount(BufferedReader br) throws IOException
-    {
-        System.out.println("Insert amount: ");
-        short amount = 0;
-        try
-        {
-            amount = Short.parseShort(br.readLine());
-        }
-        catch (NumberFormatException e)
-        {
-            throw new IOException("Amount is invalid");
-        }
-        catch (IOException e)
-        {
-            e.printStackTrace();
-        }
-        System.out.println(amount);
-        return amount;
-    }
-
-    static String promptForPin() throws IOException
-    {
-        System.out.println("Transaction requires pin: ");
-        String PIN = new Scanner(System.in).nextLine();
-
-        for (int i = 0; i < PIN.length(); ++i)
-        {
-            if (PIN.charAt(i) < '0' || PIN.charAt(i) > '9')
-            {
-                System.out.println("Invalid PIN: " + PIN);
-                break;
-            }
-        }
-        return PIN;
     }
 
     static void verifyPIN(String pin, CadClientInterface cad)
@@ -206,27 +282,5 @@ public class Terminal
         }
 
         System.out.println("response: " + apdu);
-    }
-
-
-    static void getBalance(CadClientInterface cad)
-    {
-        Apdu apdu = new Apdu();
-        apdu.command = new byte[]{(byte) 0x80, 0x50, 0x00, 0x00};
-        apdu.setDataIn(null, 0);
-        apdu.setLe(0x02);
-
-        System.out.println("command: " + apdu);
-        try
-        {
-            cad.exchangeApdu(apdu);
-        }
-        catch (IOException | CadTransportException e)
-        {
-            e.printStackTrace();
-        }
-
-        System.out.println("response: " + apdu);
-
     }
 }

@@ -40,6 +40,7 @@ public class StudentCard extends Applet
     final static byte PIN_TRY_LIMIT = (byte) 0x04;
     // maximum size PIN
     final static byte MAX_PIN_SIZE = (byte) 0x08;
+    
 
     // signal that the PIN verification failed
     final static short SW_VERIFICATION_FAILED = 0x6300;
@@ -54,17 +55,19 @@ public class StudentCard extends Applet
     final static short WRONG_STUDENT_ID_LENGTH = 0x7000;
     final static short WRONG_STUDENT_ID= 0x700A;
     final static short WRONG_NUMBER_OF_GRADES = 0x700B;
+    final static short NON_EXISTENT_GRADE = 0x5000;
     
     final static short MAX_NUMBER_OF_STUDENTS = 3000;
     
     final static short DATE_lENGTH = 10;
+    final static short GRADE_PAYLOAD_SIZE = 12;
 
     /* instance variables declaration */
     OwnerPIN pin;
     byte[] studentId = new byte[2];
 
     private final byte firstStudyFieldCode = 0x65;
-    private short firstStudyFieldGrade;
+    private short firstStudyFieldGrade = 0;
     private byte[] firstStudyFieldDate;
 
     private final byte secondStudyFieldCode = 0x66;
@@ -196,7 +199,10 @@ public class StudentCard extends Applet
                 return;
             case VERIFY_STUDENT_GRADE:
                 verifyStudentGrade(apdu);
+                return;
             case GET_STUDENT_ID:
+                getStudentId(apdu);
+                return;
             default:
                 ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
             }
@@ -238,9 +244,10 @@ public class StudentCard extends Applet
 
         // move the balance data into the APDU buffer
         // starting at the offset 0
-        buffer = studentId;
-
-        // send the 2-byte balance at the offset
+        buffer[0] = studentId[0];
+        buffer[1] = studentId[1];
+        
+        // send the 2-byte student id at the offset
         // 0 in the apdu buffer
         apdu.sendBytes((short) 0, (short) 2);
     }
@@ -326,6 +333,8 @@ public class StudentCard extends Applet
         {
             ISOException.throwIt(SW_VERIFICATION_FAILED);
         }
+        
+        
 
     } // end of validate method
 
@@ -422,28 +431,119 @@ public class StudentCard extends Applet
         }
         
         short offset = ISO7816.OFFSET_CDATA - 1;
-        short payloadSize = buffer[offset];
-        
         offset += 1;
         short numberOfInsertedGrades = buffer[offset];
         
         if (numberOfInsertedGrades > 5 || numberOfInsertedGrades < 1)
         {
-            ISOException.throwIt(numberOfInsertedGrades);
+            ISOException.throwIt(WRONG_NUMBER_OF_GRADES);
         }
         
         //each gradePayload has the same size
         //studyFieldCode(1byte) + studyFieldGrade(1 byte) + studyFieldDate(10 bytes)
-        short gradePayloadSize = (short) ((payloadSize - 1) / numberOfInsertedGrades);
         offset += 1;
         for (short index = 0; index < numberOfInsertedGrades; index++)
         {
             insertGradeHelper(buffer, offset);
-            offset += gradePayloadSize;
+            offset += GRADE_PAYLOAD_SIZE;
         }
+
+        // inform system that the applet has finished
+        // processing the command and the system should
+        // now prepare to construct a response APDU
+        // which contains data field
+        short le = apdu.setOutgoing();
+
+        if (le < 2)
+        {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+
+        // informs the CAD the actual number of bytes
+        // returned
+        apdu.setOutgoingLength((byte) 2);
+
+        // move the balance data into the APDU buffer
+        // starting at the offset 0
+        buffer[0] = studentId[0];
+        buffer[1] = studentId[1];
+        
+        // send the 2-byte student id at the offset
+        // 0 in the apdu buffer
+        apdu.sendBytes((short) 0, (short) 2);
+        
     }
 
 
+    private byte[] createGradePayload(short subjectId)
+    {
+        byte[] payload = new byte[GRADE_PAYLOAD_SIZE];
+        
+        switch(subjectId) 
+        {
+            case firstStudyFieldCode:
+            {
+                payload[0] = firstStudyFieldCode;
+                payload[1] = (byte) firstStudyFieldGrade;
+                if (firstStudyFieldDate == null)
+                {
+                    ISOException.throwIt((short)(NON_EXISTENT_GRADE + firstStudyFieldCode));
+                }
+                Util.arrayCopy(firstStudyFieldDate, (short)0, payload, (short)2, DATE_lENGTH);
+                break;
+            }
+            case secondStudyFieldCode:
+            {
+                payload[0] = secondStudyFieldCode;
+                payload[1] = (byte) secondStudyFieldGrade;
+                if (firstStudyFieldDate == null)
+                {
+                    ISOException.throwIt((short)(NON_EXISTENT_GRADE + secondStudyFieldCode));
+                }
+                Util.arrayCopy(secondStudyFieldDate, (short)0, payload, (short)2, DATE_lENGTH);
+                break;
+            }
+            case thirdStudyFieldCode:
+            {
+                payload[0] = thirdStudyFieldCode;
+                payload[1] = (byte) thirdStudyFieldGrade;
+                if (firstStudyFieldDate == null)
+                {
+                    ISOException.throwIt((short)(NON_EXISTENT_GRADE + thirdStudyFieldCode));
+                }
+                Util.arrayCopy(thirdStudyFieldDate, (short)0, payload, (short)2, DATE_lENGTH);
+                break;
+            }
+            case fourthStudyFieldCode:
+            {
+                payload[0] = fourthStudyFieldCode;
+                payload[1] = (byte) fourthStudyFieldGrade;
+                if (firstStudyFieldDate == null)
+                {
+                    ISOException.throwIt((short)(NON_EXISTENT_GRADE + fourthStudyFieldCode));
+                }
+                Util.arrayCopy(fourthStudyFieldDate, (short)0, payload, (short)2, DATE_lENGTH);
+                break;
+            }
+            case fifthStudyFieldCode:
+            {
+                payload[0] = fifthStudyFieldCode;
+                payload[1] = (byte) fifthStudyFieldGrade;
+                if (firstStudyFieldDate == null)
+                {
+                    ISOException.throwIt((short)(NON_EXISTENT_GRADE + fifthStudyFieldCode));
+                }
+                Util.arrayCopy(fifthStudyFieldDate, (short)0, payload, (short)2, DATE_lENGTH);
+                break;
+            }
+            default:
+            {
+                break;
+            }
+        }
+        return payload;
+    }
+    
     private void getGrades(APDU apdu)
     {
         if (!pin.isValidated())
@@ -469,6 +569,46 @@ public class StudentCard extends Applet
         {
             ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
         }
+        
+        short offset = ISO7816.OFFSET_CDATA - 1;
+        short numberOfSubjects = buffer[offset];
+        offset += 1;
+        byte[] toSend = new byte[(short)(GRADE_PAYLOAD_SIZE * numberOfSubjects)];
+        
+        short toSendOffset = 0;
+        for (short index = 0; index < numberOfSubjects; index++)
+        {
+            byte[] payload = createGradePayload(buffer[(short)(offset + index)]);
+            Util.arrayCopy(payload, (short)0, toSend, toSendOffset, (short)payload.length);
+            toSendOffset += GRADE_PAYLOAD_SIZE;
+        }
+        
+        // inform system that the applet has finished
+        // processing the command and the system should
+        // now prepare to construct a response APDU
+        // which contains data field
+        short le = apdu.setOutgoing();
+
+        if (le < 12)
+        {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+
+        // informs the CAD the actual number of bytes
+        // returned
+        apdu.setOutgoingLength((byte) toSend.length);
+
+        // move the balance data into the APDU buffer
+        // starting at the offset 0
+        for (short index = 0; index < toSend.length; index++)
+        {
+            buffer[index] = toSend[index]; 
+        }
+        
+        // send the payload  at the offset
+        // 0 in the apdu buffer
+        apdu.sendBytes((short) 0, (short) toSend.length);
+        
     }
 
 } // end of class Wallet
